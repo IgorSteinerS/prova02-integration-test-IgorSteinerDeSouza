@@ -4,6 +4,7 @@ module.exports = {
   testMatch: ['**/test/**/*.[jt]s?(x)'],
   verbose: true,
   testTimeout: 30000,
+  setupFiles: ['dotenv/config'],
   reporters: [
     'default',
     [
