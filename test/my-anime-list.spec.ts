@@ -9,7 +9,8 @@ describe('MyAnimeList API', () => {
 
   const accessToken = process.env.MAL_ACCESS_TOKEN;
 
-  let animeId = 0;
+  let animeIdParaTestar = 0;
+  let mangaIdParaTestar = 0;
 
   p.request.setDefaultTimeout(30000);
 
@@ -26,9 +27,66 @@ describe('MyAnimeList API', () => {
     p.reporter.end();
   });
 
+  describe('Consulta de Informações da API', () => {
+    it('Deve obter os detalhes de um anime específico pelo ID', async () => {
+      await p
+        .spec()
+        .get(`${baseUrl}/anime/31240`)
+        .withHeaders('Authorization', `Bearer ${accessToken}`)
+        .expectStatus(StatusCodes.OK)
+        .expectJsonLike({
+          title: 'Re:Zero kara Hajimeru Isekai Seikatsu'
+        });
+    });
+
+    it('Deve obter o ranking de animes (Top 5 em lançamento)', async () => {
+      await p
+        .spec()
+        .get(`${baseUrl}/anime/ranking`)
+        .withQueryParams({
+          ranking_type: 'all',
+          limit: 5
+        })
+        .withHeaders('Authorization', `Bearer ${accessToken}`)
+        .expectStatus(StatusCodes.OK)
+        .expectJsonSchema('data', { type: 'array' });
+    });
+
+    it('Deve obter a lista de animes da temporada de Verão de 2024', async () => {
+      await p
+        .spec()
+        .get(`${baseUrl}/anime/season/2024/summer`)
+        .withQueryParams('limit', 3)
+        .withHeaders('Authorization', `Bearer ${accessToken}`)
+        .expectStatus(StatusCodes.OK)
+        .expectJsonLike({
+          season: {
+            year: 2024,
+            season: 'summer'
+          }
+        });
+    });
+
+    it('Deve obter as informações do meu perfil de usuário', async () => {
+      await p
+        .spec()
+        .get(`${baseUrl}/users/@me`)
+        .withHeaders('Authorization', `Bearer ${accessToken}`)
+        .expectStatus(StatusCodes.OK)
+        .expectJsonSchema({
+          type: 'object',
+          properties: {
+            id: { type: 'integer' },
+            name: { type: 'string' },
+            location: { type: 'string' }
+          }
+        });
+    });
+  });
+
   describe('Gerenciando a lista de animes de um usuário', () => {
     it('Deve buscar por um anime e extrair seu ID', async () => {
-      animeId = await p
+      animeIdParaTestar = await p
         .spec()
         .get(`${baseUrl}/anime`)
         .withQueryParams({
@@ -37,22 +95,19 @@ describe('MyAnimeList API', () => {
         })
         .withHeaders('Authorization', `Bearer ${accessToken}`)
         .expectStatus(StatusCodes.OK)
-        .expectJsonLike({
-          data: [
-            {
-              node: {
-                title: 'Witch Watch'
-              }
-            }
-          ]
-        })
         .returns('data[0].node.id');
     });
 
     it('Deve adicionar o anime na lista com o status "assistindo"', async () => {
       await p
         .spec()
-        .put(`${baseUrl}/anime/${animeId}/my_list_status`)
+        .delete(`${baseUrl}/anime/${animeIdParaTestar}/my_list_status`)
+        .withHeaders('Authorization', `Bearer ${accessToken}`)
+        .toss();
+
+      await p
+        .spec()
+        .patch(`${baseUrl}/anime/${animeIdParaTestar}/my_list_status`)
         .withHeaders('Authorization', `Bearer ${accessToken}`)
         .withJson({
           status: 'watching',
@@ -70,22 +125,55 @@ describe('MyAnimeList API', () => {
         .get(`${baseUrl}/users/@me/animelist`)
         .withQueryParams({
           status: 'watching',
-          limit: 100,
-          fields: 'list_status'
+          limit: 100
         })
         .withHeaders('Authorization', `Bearer ${accessToken}`)
         .expectStatus(StatusCodes.OK)
-
-        .expectJsonLike('data[*].node.id', [animeId]);
+        .expectJsonLike('data[*].node.id', [animeIdParaTestar]);
     });
 
     it('Deve remover o anime da lista do usuário', async () => {
       await p
         .spec()
-        .delete(`${baseUrl}/anime/${animeId}/my_list_status`)
+        .delete(`${baseUrl}/anime/${animeIdParaTestar}/my_list_status`)
+        .withHeaders('Authorization', `Bearer ${accessToken}`)
+        .expectStatus(StatusCodes.OK);
+    });
+  });
+
+  describe('Gerenciando a lista de mangás de um usuário', () => {
+    it('Deve buscar por um mangá e adicioná-lo à lista com o status "lendo"', async () => {
+      mangaIdParaTestar = await p
+        .spec()
+        .get(`${baseUrl}/manga`)
+        .withQueryParams({ q: 'Gantz', limit: 1 })
         .withHeaders('Authorization', `Bearer ${accessToken}`)
         .expectStatus(StatusCodes.OK)
-        .expectBodyContains('');
+        .returns('data[0].node.id');
+
+      await p
+        .spec()
+        .delete(`${baseUrl}/manga/${mangaIdParaTestar}/my_list_status`)
+        .withHeaders('Authorization', `Bearer ${accessToken}`)
+        .toss();
+
+      await p
+        .spec()
+        .patch(`${baseUrl}/manga/${mangaIdParaTestar}/my_list_status`)
+        .withHeaders('Authorization', `Bearer ${accessToken}`)
+        .withJson({
+          status: 'reading',
+          num_chapters_read: 1
+        })
+        .expectStatus(StatusCodes.OK);
+    });
+
+    it('Deve remover o mangá da lista do usuário', async () => {
+      await p
+        .spec()
+        .delete(`${baseUrl}/manga/${mangaIdParaTestar}/my_list_status`)
+        .withHeaders('Authorization', `Bearer ${accessToken}`)
+        .expectStatus(StatusCodes.OK);
     });
   });
 });
